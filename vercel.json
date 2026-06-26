@@ -1,0 +1,8 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/reset?secret=szk-cron-2026",
+            "schedule": "0 9 * * *"
+        }
+    ]
+}
