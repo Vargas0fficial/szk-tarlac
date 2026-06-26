@@ -2,6 +2,40 @@
 
 import { useState } from 'react';
 
+// Auto-suggest service type based on mileage
+const getMileageServiceType = (mileage) => {
+  const km = parseInt(mileage?.toString().replace(/,/g, ''), 10);
+  if (isNaN(km)) return '';
+  if (km <= 1000) return '1K PMS';
+  if (km <= 5000) return '5K PMS';
+  if (km <= 10000) return '10K PMS';
+  if (km <= 15000) return '15K PMS';
+  if (km <= 20000) return '20K PMS';
+  if (km <= 25000) return '25K PMS';
+  if (km <= 30000) return '30K PMS';
+  if (km <= 35000) return '35K PMS';
+  if (km <= 40000) return '40K PMS';
+  if (km <= 45000) return '45K PMS';
+  if (km <= 50000) return '50K PMS';
+  if (km <= 60000) return '60K PMS';
+  if (km <= 70000) return '70K PMS';
+  if (km <= 80000) return '80K PMS';
+  if (km <= 90000) return '90K PMS';
+  if (km <= 100000) return '100K PMS';
+  if (km <= 105000) return '105K PMS';
+  if (km <= 110000) return '110K PMS';
+  if (km <= 115000) return '115K PMS';
+  if (km <= 120000) return '120K PMS';
+  if (km <= 125000) return '125K PMS';
+  if (km <= 130000) return '130K PMS';
+  if (km <= 135000) return '135K PMS';
+  if (km <= 140000) return '140K PMS';
+  if (km <= 145000) return '145K PMS';
+  if (km <= 150000) return '150K PMS';
+  if (km <= 200000) return '200K PMS';
+  return `${Math.round(km / 1000)}K PMS`;
+};
+
 export default function AppointmentForm({ onSuccess }) {
   const [formData, setFormData] = useState({
     sticker: '',
@@ -20,7 +54,21 @@ export default function AppointmentForm({ onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    if (name === 'mileage') {
+      const suggested = getMileageServiceType(value);
+      setFormData((prev) => ({
+        ...prev,
+        mileage: value,
+        // Auto-update service type only if PMS is selected or already a PMS variant
+        serviceType: (prev.serviceType === 'PMS' || prev.serviceType.includes('PMS'))
+          ? (suggested || prev.serviceType)
+          : prev.serviceType,
+      }));
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleClear = () => {
@@ -96,17 +144,26 @@ export default function AppointmentForm({ onSuccess }) {
             <input type="text" name="model" value={formData.model} onChange={handleChange} placeholder="--" className={inputClass} />
           </div>
 
-          {/* Col 3 Row 1 — Service Type */}
+          {/* Col 3 Row 1 — Service Type (dropdown, but auto-updates with mileage) */}
           <div style={{ gridColumn: '3', gridRow: '1' }}>
             <label className={labelClass}>
               Service Type <span className="text-red-500">*</span>
             </label>
             <select name="serviceType" value={formData.serviceType} onChange={handleChange} required className={`${inputClass} text-gray-500`}>
               <option value="" disabled>Select service type</option>
-              <option value="PMS">PMS</option>
+              {formData.serviceType && formData.serviceType.includes('K PMS') ? (
+                <option value={formData.serviceType}>{formData.serviceType}</option>
+              ) : (
+                <option value="PMS">PMS</option>
+              )}
               <option value="GENERAL JOB">GENERAL JOB</option>
               <option value="BODY REPAIR">BODY REPAIR</option>
             </select>
+            {formData.serviceType && formData.serviceType.includes('K PMS') && (
+              <p className="text-[10px] text-[#0054a6] mt-1">
+                Auto-updated based on mileage
+              </p>
+            )}
           </div>
 
           {/* Col 4 Row 1 — Service Advisor */}
@@ -161,7 +218,14 @@ export default function AppointmentForm({ onSuccess }) {
           {/* Col 2 Row 3 — Mileage */}
           <div style={{ gridColumn: '2', gridRow: '3' }}>
             <label className={labelClass}>Mileage (KM)</label>
-            <input type="text" name="mileage" value={formData.mileage} onChange={handleChange} placeholder="Enter mileage" className={inputClass} />
+            <input
+              type="text"
+              name="mileage"
+              value={formData.mileage}
+              onChange={handleChange}
+              placeholder="Enter mileage"
+              className={inputClass}
+            />
           </div>
 
           {/* Col 3 Row 3 — Appointment Time */}
