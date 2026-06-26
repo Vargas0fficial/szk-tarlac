@@ -246,13 +246,25 @@ export default function AppointmentTable({ data, onRefresh }) {
 
       {/* Success Toast */}
       {showSuccess && (
-        <div className="fixed top-6 right-6 z-[100] flex items-center gap-2 bg-green-500 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-bounce">
+        <div
+          className="fixed top-6 right-6 z-[100] flex items-center gap-2 bg-green-500 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg"
+          style={{ animation: 'fadeInOut 3s ease-in-out forwards' }}
+        >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
           Appointment updated successfully!
         </div>
       )}
+
+      <style>{`
+        @keyframes fadeInOut {
+          0%   { opacity: 0; transform: translateY(-10px); }
+          15%  { opacity: 1; transform: translateY(0); }
+          75%  { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-10px); }
+        }
+      `}</style>
 
       {/* Header Controls */}
       <div className="p-4 flex justify-between items-center">
