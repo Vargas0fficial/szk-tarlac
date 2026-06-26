@@ -8,12 +8,12 @@ export async function GET(request) {
   let changeStream = null;
   let heartbeat = null;
   let changeTimeout = null;
-  let isClosed = false; // Flag to prevent enqueue after stream is closed
+  let isClosed = false;
 
   const stream = new ReadableStream({
     async start(controller) {
       const sendData = (type, data) => {
-        if (isClosed) return; // Stop if already closed
+        if (isClosed) return;
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type, data })}\n\n`)
@@ -25,14 +25,11 @@ export async function GET(request) {
       };
 
       try {
-        // 1. Initial data fetch upon connection
         const initial = await Appointment.find({}).sort({ date: 1 });
         sendData("initial", initial);
 
-        // 2. Initialize Mongoose change stream (MongoDB Atlas Change Stream)
         changeStream = Appointment.watch();
 
-        // Defensive debounce wrapper to manage rapid status switches safely
         changeStream.on("change", () => {
           if (changeTimeout) clearTimeout(changeTimeout);
 
@@ -52,7 +49,6 @@ export async function GET(request) {
           try { controller.close(); } catch (e) { }
         });
 
-        // 3. Keep-alive heartbeat interval to prevent browser timeout (15 seconds)
         heartbeat = setInterval(() => {
           if (isClosed) {
             clearInterval(heartbeat);
@@ -71,9 +67,8 @@ export async function GET(request) {
         controller.error(error);
       }
     },
-    // Triggers when the browser closes the connection or navigates away
     cancel() {
-      isClosed = true; // Mark as closed
+      isClosed = true;
       if (heartbeat) clearInterval(heartbeat);
       if (changeTimeout) clearTimeout(changeTimeout);
       if (changeStream) changeStream.close();
@@ -81,9 +76,8 @@ export async function GET(request) {
     }
   });
 
-  // Fallback abort signal listener for request handling optimization
   request.signal.addEventListener("abort", () => {
-    isClosed = true; // Mark as closed
+    isClosed = true;
     if (heartbeat) clearInterval(heartbeat);
     if (changeTimeout) clearTimeout(changeTimeout);
     if (changeStream) changeStream.close();
@@ -124,23 +118,30 @@ export async function POST(request) {
 }
 
 // ==========================================
-// PUT HANDLER FOR UPDATING APPOINTMENT STATUS
+// PUT HANDLER FOR UPDATING APPOINTMENTS (status + full edit)
 // ==========================================
 export async function PUT(request) {
   try {
     await connectDB();
-    const { id, status } = await request.json();
+    const body = await request.json();
+    const { id, status, ...rest } = body;
 
-    if (!id || !status) {
-      return new Response(JSON.stringify({ success: false, error: "Missing required fields: id or status" }), {
+    if (!id) {
+      return new Response(JSON.stringify({ success: false, error: "Missing required field: id" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
 
+    // Kung status lang — status update lang
+    // Kung may ibang fields — full update
+    const updateData = status && Object.keys(rest).length === 0
+      ? { status }
+      : { ...rest, ...(status && { status }) };
+
     const updatedAppointment = await Appointment.findByIdAndUpdate(
       id,
-      { status },
+      updateData,
       { returnDocument: 'after' }
     );
 
@@ -156,7 +157,7 @@ export async function PUT(request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Failed to update appointment status in database:", error);
+    console.error("Failed to update appointment in database:", error);
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

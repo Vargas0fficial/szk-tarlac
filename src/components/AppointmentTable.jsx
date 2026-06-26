@@ -13,6 +13,28 @@ const STATUS_STYLES = {
 const STATUS_OPTIONS = Object.keys(STATUS_STYLES);
 const PAGE_SIZE = 5;
 
+const getMileageServiceType = (mileage) => {
+  const km = parseInt(mileage?.toString().replace(/,/g, ''), 10);
+  if (isNaN(km)) return '';
+  if (km <= 1000) return '1K PMS';
+  if (km <= 5000) return '5K PMS';
+  if (km <= 10000) return '10K PMS';
+  if (km <= 15000) return '15K PMS';
+  if (km <= 20000) return '20K PMS';
+  if (km <= 25000) return '25K PMS';
+  if (km <= 30000) return '30K PMS';
+  if (km <= 35000) return '35K PMS';
+  if (km <= 40000) return '40K PMS';
+  if (km <= 45000) return '45K PMS';
+  if (km <= 50000) return '50K PMS';
+  if (km <= 60000) return '60K PMS';
+  if (km <= 70000) return '70K PMS';
+  if (km <= 80000) return '80K PMS';
+  if (km <= 90000) return '90K PMS';
+  if (km <= 100000) return '100K PMS';
+  return `${Math.round(km / 1000)}K PMS`;
+};
+
 export default function AppointmentTable({ data, onRefresh }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
@@ -22,6 +44,10 @@ export default function AppointmentTable({ data, onRefresh }) {
   const [openStatusId, setOpenStatusId] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleDeleteClick = (item) => setDeleteTarget(item);
 
@@ -50,7 +76,6 @@ export default function AppointmentTable({ data, onRefresh }) {
       } catch (err) {
         clearTimeout(timeoutId);
         if (!isRetry) {
-          console.warn("Delete timed out or failed. Resetting link channel and retrying silently...");
           if (typeof window !== 'undefined' && window.__forceSilentStreamReconnect) {
             window.__forceSilentStreamReconnect();
           }
@@ -94,7 +119,6 @@ export default function AppointmentTable({ data, onRefresh }) {
       } catch (err) {
         clearTimeout(timeoutId);
         if (!isRetry) {
-          console.warn("Network path frozen. Resetting channel connection and forcing processing...");
           if (typeof window !== 'undefined' && window.__forceSilentStreamReconnect) {
             window.__forceSilentStreamReconnect();
           }
@@ -108,6 +132,66 @@ export default function AppointmentTable({ data, onRefresh }) {
       await executeUpdate();
     } finally {
       setUpdatingStatus(null);
+    }
+  };
+
+  // Edit handlers
+  const handleEditClick = (item) => {
+    setEditTarget(item);
+    setEditForm({
+      sticker: item.sticker || '',
+      model: item.model || '',
+      customer: item.customer || '',
+      plate: item.plate || '',
+      contact: item.contact || '',
+      mileage: item.mileage || '',
+      serviceType: item.serviceType || 'PMS',
+      advisor: item.advisor || '',
+      date: item.date || '',
+      time: item.time || '',
+      remarks: item.remarks || '',
+    });
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'mileage') {
+      const suggested = getMileageServiceType(value);
+      setEditForm((prev) => ({
+        ...prev,
+        mileage: value,
+        serviceType: (prev.serviceType === 'PMS' || prev.serviceType.includes('PMS'))
+          ? (suggested || prev.serviceType)
+          : prev.serviceType,
+      }));
+    } else {
+      setEditForm((prev) => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editTarget) return;
+    setSaving(true);
+
+    try {
+      const res = await fetch('/api/appointments/stream', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editTarget._id, ...editForm }),
+      });
+
+      if (res.ok) {
+        setEditTarget(null);
+        onRefresh?.();
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        alert('Failed to update appointment.');
+      }
+    } catch {
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -153,9 +237,22 @@ export default function AppointmentTable({ data, onRefresh }) {
     return pages;
   };
 
+  const inputClass = "w-full border border-gray-200 rounded-lg p-2 text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-[#0054a6] text-gray-800";
+  const labelClass = "text-xs font-semibold text-gray-600 block mb-1";
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       {openStatusId && <div className="fixed inset-0 z-40" onClick={() => setOpenStatusId(null)} />}
+
+      {/* Success Toast */}
+      {showSuccess && (
+        <div className="fixed top-6 right-6 z-[100] flex items-center gap-2 bg-green-500 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg animate-bounce">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Appointment updated successfully!
+        </div>
+      )}
 
       {/* Header Controls */}
       <div className="p-4 flex justify-between items-center">
@@ -236,19 +333,9 @@ export default function AppointmentTable({ data, onRefresh }) {
                           className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer disabled:opacity-50 transition-all ${STATUS_STYLES[status] || STATUS_STYLES['Pending']}`}
                         >
                           <span>{updatingStatus === item._id ? 'Updating...' : status}</span>
-
                           {updatingStatus !== item._id && (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                              className="w-3 h-3 opacity-70"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                                clipRule="evenodd"
-                              />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 opacity-70">
+                              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
                             </svg>
                           )}
                         </button>
@@ -271,11 +358,20 @@ export default function AppointmentTable({ data, onRefresh }) {
                     </td>
 
                     <td className="px-4 py-3 text-center">
-                      <button onClick={() => handleDeleteClick(item)} className="text-red-400 hover:text-red-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        {/* Edit Button */}
+                        <button onClick={() => handleEditClick(item)} className="text-blue-400 hover:text-blue-600 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
+                        {/* Delete Button */}
+                        <button onClick={() => handleDeleteClick(item)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -284,6 +380,92 @@ export default function AppointmentTable({ data, onRefresh }) {
           </tbody>
         </table>
       </div>
+
+      {/* EDIT MODAL */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-sm font-bold text-slate-800 mb-4">Edit Appointment</h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Conduction Sticker</label>
+                <input type="text" name="sticker" value={editForm.sticker} onChange={handleEditChange} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Vehicle Model</label>
+                <input type="text" name="model" value={editForm.model} onChange={handleEditChange} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Customer Name</label>
+                <input type="text" name="customer" value={editForm.customer} onChange={handleEditChange} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Plate Number</label>
+                <input type="text" name="plate" value={editForm.plate} onChange={handleEditChange} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Contact Number</label>
+                <input type="text" name="contact" value={editForm.contact} onChange={handleEditChange} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Mileage (KM)</label>
+                <input type="text" name="mileage" value={editForm.mileage} onChange={handleEditChange} placeholder="Enter mileage" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Service Type</label>
+                <select name="serviceType" value={editForm.serviceType} onChange={handleEditChange} className={`${inputClass} text-gray-500`}>
+                  {editForm.serviceType && editForm.serviceType.includes('K PMS') ? (
+                    <option value={editForm.serviceType}>{editForm.serviceType}</option>
+                  ) : (
+                    <option value="PMS">PMS</option>
+                  )}
+                  <option value="GENERAL JOB">GENERAL JOB</option>
+                  <option value="BODY REPAIR">BODY REPAIR</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Service Advisor</label>
+                <select name="advisor" value={editForm.advisor} onChange={handleEditChange} className={`${inputClass} text-gray-500`}>
+                  <option value="">Select advisor</option>
+                  <option value="KENNETH FERNANDEZ">KENNETH FERNANDEZ</option>
+                  <option value="MALVIN JASON MENOR">MALVIN JASON MENOR</option>
+                  <option value="ADOONIS TAMONDONG">ADOONIS TAMONDONG</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Appointment Date</label>
+                <input type="date" name="date" value={editForm.date} onChange={handleEditChange} className={`${inputClass} text-gray-500`} />
+              </div>
+              <div>
+                <label className={labelClass}>Appointment Time</label>
+                <input type="time" name="time" value={editForm.time} onChange={handleEditChange} className={`${inputClass} text-gray-500`} />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Remarks</label>
+                <textarea name="remarks" value={editForm.remarks} onChange={handleEditChange} placeholder="Enter remarks (optional)" className={`${inputClass} resize-none h-16`} />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-4">
+              <button onClick={() => setEditTarget(null)} disabled={saving} className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100">
+                Cancel
+              </button>
+              <button onClick={handleEditSave} disabled={saving} className="px-4 py-2 text-xs font-semibold text-white bg-[#003399] hover:bg-[#004080] rounded-lg disabled:opacity-70 flex items-center gap-2">
+                {saving ? (
+                  <>
+                    <svg className="animate-spin w-3.5 h-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
