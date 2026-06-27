@@ -6,6 +6,7 @@ import { useState } from 'react';
 const getMileageServiceType = (mileage) => {
   const km = parseInt(mileage?.toString().replace(/,/g, ''), 10);
   if (isNaN(km)) return '';
+  if (isNaN(km)) return '';
   if (km <= 1000) return '1K PMS';
   if (km <= 5000) return '5K PMS';
   if (km <= 10000) return '10K PMS';
@@ -17,10 +18,15 @@ const getMileageServiceType = (mileage) => {
   if (km <= 40000) return '40K PMS';
   if (km <= 45000) return '45K PMS';
   if (km <= 50000) return '50K PMS';
+  if (km <= 55000) return '55K PMS'; 
   if (km <= 60000) return '60K PMS';
+  if (km <= 65000) return '65K PMS'; 
   if (km <= 70000) return '70K PMS';
+  if (km <= 75000) return '75K PMS';
   if (km <= 80000) return '80K PMS';
+  if (km <= 85000) return '85K PMS'; 
   if (km <= 90000) return '90K PMS';
+  if (km <= 95000) return '95K PMS'; 
   if (km <= 100000) return '100K PMS';
   if (km <= 105000) return '105K PMS';
   if (km <= 110000) return '110K PMS';
