@@ -18,12 +18,23 @@ const COMPLETED_HIDE_DELAY = 2000;
 const calculatePageSize = () => {
   if (typeof window === 'undefined') return 5;
   const screenHeight = window.innerHeight;
-  const navHeight = 80;       // nav
-  const headerHeight = 80;    // "Appointment List" + clock
-  const tableHeaderHeight = 40; // thead
-  const footerHeight = 100;   // footer + dots
-  const rowHeight = screenHeight < 700 ? 44 : screenHeight < 1080 ? 52 : 60;
-  const available = screenHeight - navHeight - headerHeight - tableHeaderHeight - footerHeight;
+
+  // Approximate heights ng fixed elements
+  const navHeight = 90;        // nav
+  const headerHeight = 70;     // "Appointment List" + clock
+  const tableHeaderHeight = 40; // thead row
+  const footerHeight = 120;    // footer + dots
+  const padding = 80;          // py-4 + gaps
+
+  const rowHeight = screenHeight < 700
+    ? 44   // phone
+    : screenHeight < 900
+      ? 52   // small desktop
+      : screenHeight < 1200
+        ? 60   // desktop
+        : 72;  // TV / large monitor
+
+  const available = screenHeight - navHeight - headerHeight - tableHeaderHeight - footerHeight - padding;
   const count = Math.floor(available / rowHeight);
   return Math.max(3, count);
 };
