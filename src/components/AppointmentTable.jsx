@@ -15,24 +15,10 @@ const PAGE_SIZE = 5;
 
 const getMileageServiceType = (mileage) => {
   const km = parseInt(mileage?.toString().replace(/,/g, ''), 10);
-  if (isNaN(km)) return '';
-  if (km <= 1000) return '1K PMS';
-  if (km <= 5000) return '5K PMS';
-  if (km <= 10000) return '10K PMS';
-  if (km <= 15000) return '15K PMS';
-  if (km <= 20000) return '20K PMS';
-  if (km <= 25000) return '25K PMS';
-  if (km <= 30000) return '30K PMS';
-  if (km <= 35000) return '35K PMS';
-  if (km <= 40000) return '40K PMS';
-  if (km <= 45000) return '45K PMS';
-  if (km <= 50000) return '50K PMS';
-  if (km <= 60000) return '60K PMS';
-  if (km <= 70000) return '70K PMS';
-  if (km <= 80000) return '80K PMS';
-  if (km <= 90000) return '90K PMS';
-  if (km <= 100000) return '100K PMS';
-  return `${Math.round(km / 1000)}K PMS`;
+  if (isNaN(km) || km <= 0) return '';
+  const step = km <= 1000 ? 1000 : Math.ceil(km / 5000) * 5000;
+  const label = step >= 1000 ? `${step / 1000}K` : `${step}`;
+  return `${label} PMS`;
 };
 
 export default function AppointmentTable({ data, onRefresh }) {
@@ -48,6 +34,11 @@ export default function AppointmentTable({ data, onRefresh }) {
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Delete All states
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [deleteAllProgress, setDeleteAllProgress] = useState({ done: 0, total: 0 });
 
   const handleDeleteClick = (item) => setDeleteTarget(item);
 
@@ -90,6 +81,31 @@ export default function AppointmentTable({ data, onRefresh }) {
 
     await executeDelete();
     setDeleting(false);
+  };
+
+  // Delete All handler
+  const handleDeleteAll = async () => {
+    setDeletingAll(true);
+    setDeleteAllProgress({ done: 0, total: filtered.length });
+
+    let done = 0;
+    for (const item of filtered) {
+      try {
+        const id = item._id?.toString() || item._id;
+        await fetch(`/api/appointments/stream?id=${id}`, { method: 'DELETE' });
+      } catch {
+        // continue even if one fails
+      }
+      done++;
+      setDeleteAllProgress({ done, total: filtered.length });
+    }
+
+    setDeletingAll(false);
+    setShowDeleteAll(false);
+    setPage(1);
+    onRefresh?.();
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
   };
 
   const handleStatusChange = async (id, newStatus) => {
@@ -135,7 +151,6 @@ export default function AppointmentTable({ data, onRefresh }) {
     }
   };
 
-  // Edit handlers
   const handleEditClick = (item) => {
     setEditTarget(item);
     setEditForm({
@@ -276,7 +291,7 @@ export default function AppointmentTable({ data, onRefresh }) {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search..."
-              className="border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:outline-none focus:border-[#0054a6] w-48"
+              className="border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:outline-none focus:border-[#0054a6] w-48 text-gray-800"
             />
           </div>
           <select
@@ -371,13 +386,11 @@ export default function AppointmentTable({ data, onRefresh }) {
 
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {/* Edit Button */}
                         <button onClick={() => handleEditClick(item)} className="text-blue-400 hover:text-blue-600 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
                           </svg>
                         </button>
-                        {/* Delete Button */}
                         <button onClick={() => handleDeleteClick(item)} className="text-red-400 hover:text-red-600 transition-colors">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -479,7 +492,7 @@ export default function AppointmentTable({ data, onRefresh }) {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Single Confirmation Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
@@ -501,10 +514,91 @@ export default function AppointmentTable({ data, onRefresh }) {
         </div>
       )}
 
+      {/*  DELETE ALL Confirmation Modal */}
+      {showDeleteAll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">Delete All Appointments</h3>
+            </div>
+
+            <p className="text-xs text-gray-600 my-3 bg-red-50 rounded-lg p-3 border border-red-100">
+              {statusFilter === 'All Status' && !search
+                ? <>This will permanently delete <span className="font-bold text-red-600">all {filtered.length} appointments</span>. This action cannot be undone.</>
+                : <>This will permanently delete <span className="font-bold text-red-600">{filtered.length} filtered appointments</span> ({statusFilter !== 'All Status' ? `Status: ${statusFilter}` : ''}{search ? ` Search: "${search}"` : ''}). This action cannot be undone.</>
+              }
+            </p>
+
+            {/* Progress bar (shown while deleting) */}
+            {deletingAll && (
+              <div className="mb-3">
+                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                  <span>Deleting...</span>
+                  <span>{deleteAllProgress.done} / {deleteAllProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div
+                    className="bg-red-500 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${(deleteAllProgress.done / deleteAllProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowDeleteAll(false)}
+                disabled={deletingAll}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                disabled={deletingAll}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-70 flex items-center gap-2"
+              >
+                {deletingAll ? (
+                  <>
+                    <svg className="animate-spin w-3.5 h-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : 'Yes, Delete All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pagination Footer */}
       <div className="px-4 py-3 border-t border-gray-100 flex justify-between items-center">
-        <p className="text-[11px] text-gray-400">Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} entries</p>
+        <p className="text-[11px] text-gray-400">
+          Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} entries
+        </p>
         <div className="flex items-center space-x-1">
+          {/* Delete All Button — nasa left ng pagination */}
+          {filtered.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowDeleteAll(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold text-red-500 border border-red-200 rounded-lg bg-red-50 hover:bg-red-100 hover:text-red-600 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete All ({filtered.length})
+              </button>
+              <div className="w-px h-4 bg-gray-200 mx-1" />
+            </>
+          )}
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 rounded border border-gray-200 text-xs text-gray-500 disabled:opacity-40">«</button>
           {pageNumbers().map((p, i) => typeof p === 'string' ? <span key={i} className="px-2 py-1 text-xs text-gray-400">...</span> : <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded text-xs font-medium ${page === p ? 'bg-[#0054a6] text-white' : 'border border-gray-200 text-gray-600'}`}>{p}</button>)}
           <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-2 py-1 rounded border border-gray-200 text-xs text-gray-500 disabled:opacity-40">»</button>

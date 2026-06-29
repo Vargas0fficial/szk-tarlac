@@ -11,28 +11,53 @@ const STATUS_STYLES = {
   Cancelled: 'bg-red-100 text-red-700 border border-red-200',
 };
 
-const PAGE_SIZE = 5;
-const SLIDE_INTERVAL = 15000; // 15 seconds
-const COMPLETED_HIDE_DELAY = 2000; // 2 seconds bago mag-fade out
+const SLIDE_INTERVAL = 15000;
+const COMPLETED_HIDE_DELAY = 2000;
+
+// Calculate how many rows fit based on available screen height
+const calculatePageSize = () => {
+  if (typeof window === 'undefined') return 5;
+  const screenHeight = window.innerHeight;
+  const navHeight = 80;       // nav
+  const headerHeight = 80;    // "Appointment List" + clock
+  const tableHeaderHeight = 40; // thead
+  const footerHeight = 100;   // footer + dots
+  const rowHeight = screenHeight < 700 ? 44 : screenHeight < 1080 ? 52 : 60;
+  const available = screenHeight - navHeight - headerHeight - tableHeaderHeight - footerHeight;
+  const count = Math.floor(available / rowHeight);
+  return Math.max(3, count);
+};
 
 export default function PublicPage() {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [fade, setFade] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [mounted, setMounted] = useState(false);
-  const [hidingIds, setHidingIds] = useState(new Set()); // nag-fa-fade out na
-  const [hiddenIds, setHiddenIds] = useState(new Set()); // fully hidden na
+  const [hidingIds, setHidingIds] = useState(new Set());
+  const [hiddenIds, setHiddenIds] = useState(new Set());
   const prevAppointmentsRef = useRef([]);
 
+  // Clock
   useEffect(() => {
     setMounted(true);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Detect newly Completed appointments at i-fade out sila
+  // Responsive page size based on screen height
+  useEffect(() => {
+    const update = () => {
+      setPageSize(calculatePageSize());
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Detect newly Completed appointments and fade them out
   useEffect(() => {
     const prev = prevAppointmentsRef.current;
 
@@ -47,11 +72,8 @@ export default function PublicPage() {
         );
 
         if (!wasAlreadyCompleted) {
-          // Bagong naging Completed — mag-fade out after 5 seconds
           setTimeout(() => {
             setHidingIds((prev) => new Set([...prev, appt._id]));
-
-            // After 1s ng fade animation, fully remove
             setTimeout(() => {
               setHiddenIds((prev) => new Set([...prev, appt._id]));
               setHidingIds((prev) => {
@@ -68,6 +90,7 @@ export default function PublicPage() {
     prevAppointmentsRef.current = appointments;
   }, [appointments]);
 
+  // SSE Stream
   useEffect(() => {
     let eventSource = null;
     let watchdogTimer = null;
@@ -122,7 +145,7 @@ export default function PublicPage() {
 
   // Filter out fully hidden appointments
   const visibleAppointments = appointments.filter((a) => !hiddenIds.has(a._id));
-  const totalPages = Math.max(1, Math.ceil(visibleAppointments.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(visibleAppointments.length / pageSize));
 
   // Auto slideshow
   useEffect(() => {
@@ -139,12 +162,12 @@ export default function PublicPage() {
     return () => clearInterval(interval);
   }, [totalPages]);
 
-  // Reset to page 1 kapag nagbago ang bilang ng appointments
+  // Reset to page 1 when appointments change
   useEffect(() => {
     setPage(1);
   }, [visibleAppointments.length]);
 
-  const paginated = visibleAppointments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginated = visibleAppointments.slice((page - 1) * pageSize, page * pageSize);
 
   const formatDateTime = (item) => {
     if (item.date && item.time) {
@@ -156,6 +179,15 @@ export default function PublicPage() {
     }
     return { date: '—', time: '—' };
   };
+
+  // Dynamic row padding based on screen height
+  const rowPadding = mounted
+    ? window.innerHeight < 700
+      ? 'px-3 py-1'
+      : window.innerHeight < 1080
+        ? 'px-3 py-2'
+        : 'px-3 py-3'
+    : 'px-3 py-2';
 
   return (
     <div className="h-screen bg-[#f4f7fa] font-sans flex flex-col overflow-hidden">
@@ -202,7 +234,7 @@ export default function PublicPage() {
             </div>
           </div>
 
-          {/* TABLE with page fade transition */}
+          {/* TABLE with fade transition */}
           <div
             className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex-1"
             style={{ opacity: fade ? 1 : 0, transition: 'opacity 0.6s ease-in-out' }}
@@ -247,17 +279,17 @@ export default function PublicPage() {
                               : 'opacity 0.3s, transform 0.3s',
                           }}
                         >
-                          <td className="px-3 py-1.5 text-center text-gray-700 font-medium">
+                          <td className={`${rowPadding} text-center text-gray-700 font-medium`}>
                             {formatted.date}<br />
                             <span className="text-[10px] text-gray-400">{formatted.time}</span>
                           </td>
-                          <td className="px-3 py-1.5 text-center font-bold text-gray-800 uppercase">{item.customer}</td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{item.sticker}</td>
-                          <td className="px-3 py-1.5 text-center text-gray-600">{item.model || '—'}</td>
-                          <td className="px-3 py-1.5 text-center font-mono text-gray-600">{item.plate || '—'}</td>
-                          <td className="px-3 py-1.5 text-center text-gray-600">{item.serviceType || 'PMS'}</td>
-                          <td className="px-3 py-1.5 text-center text-gray-600">{item.advisor || '—'}</td>
-                          <td className="px-3 py-1.5 text-center">
+                          <td className={`${rowPadding} text-center font-bold text-gray-800 uppercase`}>{item.customer}</td>
+                          <td className={`${rowPadding} text-center font-mono text-gray-600`}>{item.sticker}</td>
+                          <td className={`${rowPadding} text-center text-gray-600`}>{item.model || '—'}</td>
+                          <td className={`${rowPadding} text-center font-mono text-gray-600`}>{item.plate || '—'}</td>
+                          <td className={`${rowPadding} text-center text-gray-600`}>{item.serviceType || 'PMS'}</td>
+                          <td className={`${rowPadding} text-center text-gray-600`}>{item.advisor || '—'}</td>
+                          <td className={`${rowPadding} text-center`}>
                             <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_STYLES[status] || STATUS_STYLES['Pending']}`}>
                               {status}
                             </span>
@@ -280,15 +312,14 @@ export default function PublicPage() {
         {totalPages > 1 && (
           <div className="border-b border-gray-100 px-6 py-1.5 flex justify-between items-center max-w-7xl mx-auto w-full">
             <p className="text-[11px] text-gray-400">
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visibleAppointments.length)} of {visibleAppointments.length} entries
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, visibleAppointments.length)} of {visibleAppointments.length} entries
             </p>
             <div className="flex items-center gap-1.5">
               {Array.from({ length: totalPages }).map((_, i) => (
                 <div
                   key={i}
-                  className={`rounded-full transition-all duration-500 ${
-                    i + 1 === page ? 'w-4 h-2 bg-[#0054a6]' : 'w-2 h-2 bg-gray-300'
-                  }`}
+                  className={`rounded-full transition-all duration-500 ${i + 1 === page ? 'w-4 h-2 bg-[#0054a6]' : 'w-2 h-2 bg-gray-300'
+                    }`}
                 />
               ))}
             </div>
