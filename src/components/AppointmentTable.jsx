@@ -34,6 +34,7 @@ export default function AppointmentTable({ data, onRefresh }) {
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [removingId, setRemovingId] = useState(null); // tracks row currently sliding out
 
   // Delete All states
   const [showDeleteAll, setShowDeleteAll] = useState(false);
@@ -128,7 +129,26 @@ export default function AppointmentTable({ data, onRefresh }) {
         clearTimeout(timeoutId);
 
         if (res.ok) {
-          onRefresh?.();
+          if (newStatus === 'Completed') {
+            // Slide the row out immediately, then permanently delete it from the DB
+            const deleteId = id?.toString ? id.toString() : id;
+            setRemovingId(id);
+            setTimeout(async () => {
+              try {
+                const delRes = await fetch(`/api/appointments/stream?id=${deleteId}`, { method: 'DELETE' });
+                if (!delRes.ok && delRes.status !== 404) {
+                  // 404 just means another tab/component already deleted it — not a real error
+                  console.error('Failed to delete completed appointment:', delRes.status);
+                }
+              } catch (err) {
+                console.error('Error deleting completed appointment:', err);
+              }
+              setRemovingId(null);
+              onRefresh?.();
+            }, 5000);
+          } else {
+            onRefresh?.();
+          }
         } else if (!isRetry) {
           throw new Error("Failed route patch");
         }
@@ -279,6 +299,14 @@ export default function AppointmentTable({ data, onRefresh }) {
           75%  { opacity: 1; transform: translateY(0); }
           100% { opacity: 0; transform: translateY(-10px); }
         }
+        @keyframes slideOutRight {
+          0%   { opacity: 1; transform: translateX(0); }
+          100% { opacity: 0; transform: translateX(100%); }
+        }
+        .row-slide-out {
+          animation: slideOutRight 0.5s cubic-bezier(0.4, 0, 0.8, 0.6) 3s forwards;
+          pointer-events: none;
+        }
       `}</style>
 
       {/* Header Controls */}
@@ -330,8 +358,12 @@ export default function AppointmentTable({ data, onRefresh }) {
               paginated.map((item) => {
                 const { date, time } = formatDateTime(item);
                 const status = item.status || 'Pending';
+                const isRemoving = removingId === item._id;
                 return (
-                  <tr key={item._id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={item._id}
+                    className={`hover:bg-gray-50 transition-colors ${isRemoving ? 'row-slide-out' : ''}`}
+                  >
                     <td className="px-4 py-3 text-center text-gray-700 font-medium">
                       {date}<br /><span className="text-[10px] text-gray-400">{time}</span>
                     </td>

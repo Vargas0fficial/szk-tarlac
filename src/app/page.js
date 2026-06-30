@@ -19,24 +19,23 @@ const calculatePageSize = () => {
   if (typeof window === 'undefined') return 5;
   const screenHeight = window.innerHeight;
 
-  // Approximate heights ng fixed elements
-  const navHeight = 90;        // nav
-  const headerHeight = 70;     // "Appointment List" + clock
-  const tableHeaderHeight = 40; // thead row
-  const footerHeight = 120;    // footer + dots
-  const padding = 80;          // py-4 + gaps
+  const navHeight = 90;
+  const headerHeight = 70;
+  const tableHeaderHeight = 45;
+  const footerHeight = 120;
+  const padding = 60;
 
   const rowHeight = screenHeight < 700
-    ? 44   // phone
+    ? 38   // phone
     : screenHeight < 900
-      ? 52   // small desktop
+      ? 44   // tablet / small desktop
       : screenHeight < 1200
-        ? 60   // desktop
-        : 72;  // TV / large monitor
+        ? 52   // desktop
+        : 65;  // TV / large monitor
 
   const available = screenHeight - navHeight - headerHeight - tableHeaderHeight - footerHeight - padding;
   const count = Math.floor(available / rowHeight);
-  return Math.max(3, count);
+  return Math.max(5, count);
 };
 
 export default function PublicPage() {
@@ -50,6 +49,7 @@ export default function PublicPage() {
   const [hidingIds, setHidingIds] = useState(new Set());
   const [hiddenIds, setHiddenIds] = useState(new Set());
   const prevAppointmentsRef = useRef([]);
+  const deletedIdsRef = useRef(new Set()); // tracks ids we've already requested deletion for, avoids duplicate DELETE calls
 
   // Clock
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function PublicPage() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // Detect newly Completed appointments and fade them out
+  // Detect newly Completed appointments, fade them out, then permanently delete from DB
   useEffect(() => {
     const prev = prevAppointmentsRef.current;
 
@@ -76,7 +76,8 @@ export default function PublicPage() {
       if (
         appt.status === 'Completed' &&
         !hiddenIds.has(appt._id) &&
-        !hidingIds.has(appt._id)
+        !hidingIds.has(appt._id) &&
+        !deletedIdsRef.current.has(appt._id)
       ) {
         const wasAlreadyCompleted = prev.find(
           (p) => p._id === appt._id && p.status === 'Completed'
@@ -85,13 +86,28 @@ export default function PublicPage() {
         if (!wasAlreadyCompleted) {
           setTimeout(() => {
             setHidingIds((prev) => new Set([...prev, appt._id]));
-            setTimeout(() => {
+            setTimeout(async () => {
               setHiddenIds((prev) => new Set([...prev, appt._id]));
               setHidingIds((prev) => {
                 const next = new Set(prev);
                 next.delete(appt._id);
                 return next;
               });
+
+              // Permanently delete from DB so it doesn't reappear on reload
+              const deleteId = appt._id?.toString ? appt._id.toString() : appt._id;
+              if (deletedIdsRef.current.has(deleteId)) return;
+              deletedIdsRef.current.add(deleteId);
+
+              try {
+                const res = await fetch(`/api/appointments/stream?id=${deleteId}`, { method: 'DELETE' });
+                if (!res.ok && res.status !== 404) {
+                  // 404 just means another tab/component already deleted it — not a real error
+                  console.error('Failed to delete completed appointment from DB:', res.status);
+                }
+              } catch (err) {
+                console.error('Error deleting completed appointment:', err);
+              }
             }, 1000);
           }, COMPLETED_HIDE_DELAY);
         }
@@ -351,7 +367,7 @@ export default function PublicPage() {
 
           <div className="flex items-center gap-4">
             <p className="text-[11px] text-slate-400 hidden sm:block">
-              Created by: Mark Vargas ❤️
+              Crafted with ❤️ by <a href="https://facebook.com/worstcoder.vargas" target="_blank" rel="noopener noreferrer" className="text-[#0054a6] font-semibold hover:underline">Mark Vargas</a>
             </p>
             <a
               href="https://www.buymeacoffee.com/worstcoder.vargas"
