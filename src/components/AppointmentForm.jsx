@@ -5,41 +5,10 @@ import { useState } from 'react';
 // Auto-suggest service type based on mileage
 const getMileageServiceType = (mileage) => {
   const km = parseInt(mileage?.toString().replace(/,/g, ''), 10);
-  if (isNaN(km)) return '';
-  if (isNaN(km)) return '';
-  if (km <= 1000) return '1K PMS';
-  if (km <= 5000) return '5K PMS';
-  if (km <= 10000) return '10K PMS';
-  if (km <= 15000) return '15K PMS';
-  if (km <= 20000) return '20K PMS';
-  if (km <= 25000) return '25K PMS';
-  if (km <= 30000) return '30K PMS';
-  if (km <= 35000) return '35K PMS';
-  if (km <= 40000) return '40K PMS';
-  if (km <= 45000) return '45K PMS';
-  if (km <= 50000) return '50K PMS';
-  if (km <= 55000) return '55K PMS'; 
-  if (km <= 60000) return '60K PMS';
-  if (km <= 65000) return '65K PMS'; 
-  if (km <= 70000) return '70K PMS';
-  if (km <= 75000) return '75K PMS';
-  if (km <= 80000) return '80K PMS';
-  if (km <= 85000) return '85K PMS'; 
-  if (km <= 90000) return '90K PMS';
-  if (km <= 95000) return '95K PMS'; 
-  if (km <= 100000) return '100K PMS';
-  if (km <= 105000) return '105K PMS';
-  if (km <= 110000) return '110K PMS';
-  if (km <= 115000) return '115K PMS';
-  if (km <= 120000) return '120K PMS';
-  if (km <= 125000) return '125K PMS';
-  if (km <= 130000) return '130K PMS';
-  if (km <= 135000) return '135K PMS';
-  if (km <= 140000) return '140K PMS';
-  if (km <= 145000) return '145K PMS';
-  if (km <= 150000) return '150K PMS';
-  if (km <= 200000) return '200K PMS';
-  return `${Math.round(km / 1000)}K PMS`;
+  if (isNaN(km) || km <= 0) return '';
+  const step = km <= 1000 ? 1000 : Math.ceil(km / 5000) * 5000;
+  const label = step >= 1000 ? `${step / 1000}K` : `${step}`;
+  return `${label} PMS`;
 };
 
 export default function AppointmentForm({ onSuccess }) {
@@ -52,6 +21,7 @@ export default function AppointmentForm({ onSuccess }) {
     mileage: '',
     serviceType: '',
     advisor: '',
+    technician: '',
     date: '',
     time: '',
     remarks: '',
@@ -67,7 +37,6 @@ export default function AppointmentForm({ onSuccess }) {
       setFormData((prev) => ({
         ...prev,
         mileage: value,
-        // Auto-update service type only if PMS is selected or already a PMS variant
         serviceType: (prev.serviceType === 'PMS' || prev.serviceType.includes('PMS'))
           ? (suggested || prev.serviceType)
           : prev.serviceType,
@@ -81,7 +50,7 @@ export default function AppointmentForm({ onSuccess }) {
     setFormData({
       sticker: '', model: '', customer: '', plate: '',
       contact: '', mileage: '', serviceType: '', advisor: '',
-      date: '', time: '', remarks: '',
+      technician: '', date: '', time: '', remarks: '',
     });
   };
 
@@ -120,7 +89,7 @@ export default function AppointmentForm({ onSuccess }) {
       <form onSubmit={handleSubmit}>
         <div
           className="grid gap-4 mb-4"
-          style={{ gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'auto auto auto' }}
+          style={{ gridTemplateColumns: 'repeat(4, 1fr)', gridTemplateRows: 'auto auto auto auto' }}
         >
           {/* Col 1 Row 1 — Conduction Sticker */}
           <div style={{ gridColumn: '1', gridRow: '1' }}>
@@ -150,7 +119,7 @@ export default function AppointmentForm({ onSuccess }) {
             <input type="text" name="model" value={formData.model} onChange={handleChange} placeholder="--" className={inputClass} />
           </div>
 
-          {/* Col 3 Row 1 — Service Type (dropdown, but auto-updates with mileage) */}
+          {/* Col 3 Row 1 — Service Type */}
           <div style={{ gridColumn: '3', gridRow: '1' }}>
             <label className={labelClass}>
               Service Type <span className="text-red-500">*</span>
@@ -166,9 +135,7 @@ export default function AppointmentForm({ onSuccess }) {
               <option value="BODY REPAIR">BODY REPAIR</option>
             </select>
             {formData.serviceType && formData.serviceType.includes('K PMS') && (
-              <p className="text-[10px] text-[#0054a6] mt-1">
-                Auto-updated based on mileage
-              </p>
+              <p className="text-[10px] text-[#0054a6] mt-1">Auto-updated based on mileage</p>
             )}
           </div>
 
@@ -203,8 +170,8 @@ export default function AppointmentForm({ onSuccess }) {
             <input type="date" name="date" value={formData.date} onChange={handleChange} required className={`${inputClass} text-gray-500`} />
           </div>
 
-          {/* Col 4 Row 2–3 — Remarks (spans 2 rows) */}
-          <div style={{ gridColumn: '4', gridRow: '2 / 4' }} className="flex flex-col">
+          {/* Col 4 Row 2–4 — Remarks (spans 3 rows) */}
+          <div style={{ gridColumn: '4', gridRow: '2 / 5' }} className="flex flex-col">
             <label className={labelClass}>Remarks</label>
             <textarea
               name="remarks"
@@ -241,6 +208,18 @@ export default function AppointmentForm({ onSuccess }) {
             </label>
             <input type="time" name="time" value={formData.time} onChange={handleChange} required className={`${inputClass} text-gray-500`} />
           </div>
+
+          {/* Col 1 Row 4 — Technician (now same width as other fields, no longer spans 3 columns) */}
+          <div style={{ gridColumn: '1', gridRow: '4' }}>
+            <label className={labelClass}>Technician</label>
+            <select name="technician" value={formData.technician} onChange={handleChange} className={`${inputClass} text-gray-500`}>
+              <option value="">Select technician (optional)</option>
+              {/* Add technician names here */}
+              <option value="MARK CERALDE">MARK CERALDE</option>
+              <option value="BONNY VHON">BONNY VHON</option>
+              <option value="PAUL MUÑOZ">PAUL MUÑOZ</option>
+            </select>
+          </div>
         </div>
 
         {/* Buttons */}
@@ -263,7 +242,7 @@ export default function AppointmentForm({ onSuccess }) {
                 <svg className="animate-spin w-3.5 h-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
+                </svg>Z
                 Scheduling...
               </>
             ) : (

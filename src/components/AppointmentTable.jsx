@@ -34,7 +34,7 @@ export default function AppointmentTable({ data, onRefresh }) {
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [removingId, setRemovingId] = useState(null); // tracks row currently sliding out
+  const [removingId, setRemovingId] = useState(null);
 
   // Delete All states
   const [showDeleteAll, setShowDeleteAll] = useState(false);
@@ -84,7 +84,6 @@ export default function AppointmentTable({ data, onRefresh }) {
     setDeleting(false);
   };
 
-  // Delete All handler
   const handleDeleteAll = async () => {
     setDeletingAll(true);
     setDeleteAllProgress({ done: 0, total: filtered.length });
@@ -130,14 +129,12 @@ export default function AppointmentTable({ data, onRefresh }) {
 
         if (res.ok) {
           if (newStatus === 'Completed') {
-            // Slide the row out immediately, then permanently delete it from the DB
             const deleteId = id?.toString ? id.toString() : id;
             setRemovingId(id);
             setTimeout(async () => {
               try {
                 const delRes = await fetch(`/api/appointments/stream?id=${deleteId}`, { method: 'DELETE' });
                 if (!delRes.ok && delRes.status !== 404) {
-                  // 404 just means another tab/component already deleted it — not a real error
                   console.error('Failed to delete completed appointment:', delRes.status);
                 }
               } catch (err) {
@@ -182,6 +179,7 @@ export default function AppointmentTable({ data, onRefresh }) {
       mileage: item.mileage || '',
       serviceType: item.serviceType || 'PMS',
       advisor: item.advisor || '',
+      technician: item.technician || '',
       date: item.date || '',
       time: item.time || '',
       remarks: item.remarks || '',
@@ -333,7 +331,7 @@ export default function AppointmentTable({ data, onRefresh }) {
         </div>
       </div>
 
-      {/* Table Content */}
+      {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -345,6 +343,7 @@ export default function AppointmentTable({ data, onRefresh }) {
               <th className="px-4 py-3 text-center">Plate Number</th>
               <th className="px-4 py-3 text-center">Service Type</th>
               <th className="px-4 py-3 text-center">Advisor</th>
+              <th className="px-4 py-3 text-center">Technician</th>
               <th className="px-4 py-3 text-center">Status</th>
               <th className="px-4 py-3 text-center">Action</th>
             </tr>
@@ -352,7 +351,7 @@ export default function AppointmentTable({ data, onRefresh }) {
           <tbody className="text-xs divide-y divide-gray-100">
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan="9" className="p-10 text-center text-gray-400">No appointments found.</td>
+                <td colSpan="10" className="p-10 text-center text-gray-400">No appointments found.</td>
               </tr>
             ) : (
               paginated.map((item) => {
@@ -373,6 +372,7 @@ export default function AppointmentTable({ data, onRefresh }) {
                     <td className="px-4 py-3 text-center font-mono text-gray-600">{item.plate}</td>
                     <td className="px-4 py-3 text-center text-gray-600">{item.serviceType || 'PMS'}</td>
                     <td className="px-4 py-3 text-center text-gray-600">{item.advisor || '—'}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{item.technician || '—'}</td>
 
                     <td className="px-4 py-3 text-center">
                       <div className="relative inline-block">
@@ -498,6 +498,17 @@ export default function AppointmentTable({ data, onRefresh }) {
                 <label className={labelClass}>Appointment Time</label>
                 <input type="time" name="time" value={editForm.time} onChange={handleEditChange} className={`${inputClass} text-gray-500`} />
               </div>
+              {/* Technician — now takes up a single column, matching the other fields, instead of spanning the full row */}
+              <div>
+                <label className={labelClass}>Technician</label>
+                <select name="technician" value={editForm.technician} onChange={handleEditChange} className={`${inputClass} text-gray-500`}>
+                  <option value="">Select technician (optional)</option>
+                  {/* Add technician names here */}
+                  <option value="MARK CERALDE">MARK CERALDE</option>
+                  <option value="BONNY VHON">BONNY VHON</option>
+                  <option value="PAUL MUÑOZ">PAUL MUÑOZ</option>
+                </select>
+              </div>
               <div className="col-span-2">
                 <label className={labelClass}>Remarks</label>
                 <textarea name="remarks" value={editForm.remarks} onChange={handleEditChange} placeholder="Enter remarks (optional)" className={`${inputClass} resize-none h-16`} />
@@ -546,7 +557,7 @@ export default function AppointmentTable({ data, onRefresh }) {
         </div>
       )}
 
-      {/*  DELETE ALL Confirmation Modal */}
+      {/* DELETE ALL Confirmation Modal */}
       {showDeleteAll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
@@ -566,7 +577,6 @@ export default function AppointmentTable({ data, onRefresh }) {
               }
             </p>
 
-            {/* Progress bar (shown while deleting) */}
             {deletingAll && (
               <div className="mb-3">
                 <div className="flex justify-between text-[10px] text-gray-500 mb-1">
@@ -583,18 +593,8 @@ export default function AppointmentTable({ data, onRefresh }) {
             )}
 
             <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowDeleteAll(false)}
-                disabled={deletingAll}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteAll}
-                disabled={deletingAll}
-                className="px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-70 flex items-center gap-2"
-              >
+              <button onClick={() => setShowDeleteAll(false)} disabled={deletingAll} className="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-50">Cancel</button>
+              <button onClick={handleDeleteAll} disabled={deletingAll} className="px-4 py-2 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-70 flex items-center gap-2">
                 {deletingAll ? (
                   <>
                     <svg className="animate-spin w-3.5 h-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -616,13 +616,9 @@ export default function AppointmentTable({ data, onRefresh }) {
           Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} entries
         </p>
         <div className="flex items-center space-x-1">
-          {/* Delete All Button — nasa left ng pagination */}
           {filtered.length > 0 && (
             <>
-              <button
-                onClick={() => setShowDeleteAll(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold text-red-500 border border-red-200 rounded-lg bg-red-50 hover:bg-red-100 hover:text-red-600 transition-colors"
-              >
+              <button onClick={() => setShowDeleteAll(true)} className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold text-red-500 border border-red-200 rounded-lg bg-red-50 hover:bg-red-100 hover:text-red-600 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>

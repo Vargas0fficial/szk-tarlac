@@ -48,8 +48,10 @@ export default function PublicPage() {
   const [mounted, setMounted] = useState(false);
   const [hidingIds, setHidingIds] = useState(new Set());
   const [hiddenIds, setHiddenIds] = useState(new Set());
+  const [newIds, setNewIds] = useState(new Set());
   const prevAppointmentsRef = useRef([]);
   const deletedIdsRef = useRef(new Set()); // tracks ids we've already requested deletion for, avoids duplicate DELETE calls
+  const seenIdsRef = useRef(new Set()); // tracks ids we've already seen, so we only fade-in truly new ones
 
   // Clock
   useEffect(() => {
@@ -116,6 +118,34 @@ export default function PublicPage() {
 
     prevAppointmentsRef.current = appointments;
   }, [appointments]);
+
+  // Detect brand-new appointments and mark them for a fade-in animation
+  useEffect(() => {
+    const freshIds = [];
+
+    appointments.forEach((appt) => {
+      if (!seenIdsRef.current.has(appt._id)) {
+        seenIdsRef.current.add(appt._id);
+        freshIds.push(appt._id);
+      }
+    });
+
+    // Skip the very first load (initial SSE snapshot) — only animate appointments
+    // that appear AFTER the page has already rendered once.
+    if (!loading && freshIds.length > 0) {
+      setNewIds((prev) => new Set([...prev, ...freshIds]));
+
+      freshIds.forEach((id) => {
+        setTimeout(() => {
+          setNewIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }, 700);
+      });
+    }
+  }, [appointments, loading]);
 
   // SSE Stream
   useEffect(() => {
@@ -218,6 +248,12 @@ export default function PublicPage() {
 
   return (
     <div className="h-screen bg-[#f4f7fa] font-sans flex flex-col overflow-hidden">
+      <style>{`
+        @keyframes fadeInRow {
+          0%   { opacity: 0; }
+          100% { opacity: 1; }
+        }
+      `}</style>
 
       {/* NAV */}
       <nav className="bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
@@ -277,30 +313,33 @@ export default function PublicPage() {
                     <th className="px-3 py-2 text-center">Plate Number</th>
                     <th className="px-3 py-2 text-center">Service Type</th>
                     <th className="px-3 py-2 text-center">Advisor</th>
+                    <th className="px-3 py-2 text-center">Technician</th>
                     <th className="px-3 py-2 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs divide-y divide-gray-100">
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="p-10 text-center text-gray-400 animate-pulse">Loading appointments...</td>
+                      <td colSpan="9" className="p-10 text-center text-gray-400 animate-pulse">Loading appointments...</td>
                     </tr>
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="p-10 text-center text-gray-400">No appointments found.</td>
+                      <td colSpan="9" className="p-10 text-center text-gray-400">No appointments found.</td>
                     </tr>
                   ) : (
                     paginated.map((item) => {
                       const status = item.status || 'Pending';
                       const formatted = formatDateTime(item);
                       const isHiding = hidingIds.has(item._id);
+                      const isNew = newIds.has(item._id);
                       return (
                         <tr
                           key={item._id}
                           className="hover:bg-gray-50 transition-colors"
                           style={{
-                            opacity: isHiding ? 0 : 1,
+                            opacity: isHiding ? 0 : isNew ? 0 : 1,
                             transform: isHiding ? 'translateX(40px)' : 'translateX(0)',
+                            animation: isNew ? 'fadeInRow 0.6s ease-out forwards' : undefined,
                             transition: isHiding
                               ? 'opacity 1s ease-out, transform 1s ease-out'
                               : 'opacity 0.3s, transform 0.3s',
@@ -316,6 +355,7 @@ export default function PublicPage() {
                           <td className={`${rowPadding} text-center font-mono text-gray-600`}>{item.plate || '—'}</td>
                           <td className={`${rowPadding} text-center text-gray-600`}>{item.serviceType || 'PMS'}</td>
                           <td className={`${rowPadding} text-center text-gray-600`}>{item.advisor || '—'}</td>
+                          <td className={`${rowPadding} text-center text-gray-600`}>{item.technician || '—'}</td>
                           <td className={`${rowPadding} text-center`}>
                             <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-semibold ${STATUS_STYLES[status] || STATUS_STYLES['Pending']}`}>
                               {status}
